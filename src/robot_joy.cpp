@@ -2,7 +2,7 @@
  * @Author: Zhaoq 1327153842@qq.com
  * @Date: 2022-08-02 13:29:22
  * @LastEditors: Zhaoq 1327153842@qq.com
- * @LastEditTime: 2022-12-27 13:42:45
+ * @LastEditTime: 2023-01-12 16:35:24
  * @Gitee: https://gitee.com/REINOVO
  * @Description: 手柄速度控制节点
  */
@@ -34,18 +34,18 @@ TeleopJoy::TeleopJoy():n("~")
     n.param<double>("linear_vel", f_velLinear, 0.3);//初始最大线速度
     n.param<double>("angular_vel", f_velAngular, 0.6);//初始最大角速度
     ros::SubscriberStatusCallback pub_marker_cb = std::bind( [&]{
-    if (pub.getNumSubscribers()>0)
-    {
-        flag_publish_maker_ = true;
-        ROS_INFO_STREAM("Starting publish vel.");
-    }
-    else 
-    {
-        flag_publish_maker_ = false;
-        ROS_INFO_STREAM("Stopping publish vel.");
-    }
-  });
-    pub = nh.advertise<geometry_msgs::Twist>("joy/cmd_vel",1, true);
+        if (pub.getNumSubscribers()>0)
+        {
+            flag_publish_maker_ = true;
+            ROS_INFO_STREAM("Starting publish vel.");
+        }
+        else 
+        {
+            flag_publish_maker_ = false;
+            ROS_INFO_STREAM("Stopping publish vel.");
+        }
+    });
+    pub = nh.advertise<geometry_msgs::Twist>("joy/cmd_vel",1, pub_marker_cb, pub_marker_cb);
     sub = nh.subscribe<sensor_msgs::Joy>("joy", 1, &TeleopJoy::callBack, this);
 }
 
