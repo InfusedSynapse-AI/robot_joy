@@ -18,7 +18,7 @@ public:
             if(joy_wakeup_flag_){
                 if(flag_publish_maker_) pub.publish(vel);
                 if(joy_zero_flag_){
-                    if((ros::Time::now().toSec() - last_time_.toSec())>10){
+                    if((ros::Time::now().toSec() - last_time_.toSec())>30){
                         joy_wakeup_flag_ = false;
                         joy_zero_flag_ = false;
                         ROS_WARN("joy vel controller has sleeped");
