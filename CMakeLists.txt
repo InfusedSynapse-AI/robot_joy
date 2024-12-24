@@ -11,13 +11,13 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
   rospy
-  sensor_msgs
+  dual_arm_msgs
 )
 
 catkin_package(
- INCLUDE_DIRS include
- LIBRARIES robot_joy
-  CATKIN_DEPENDS geometry_msgs roscpp rospy
+ #INCLUDE_DIRS include
+ #LIBRARIES robot_joy
+ #CATKIN_DEPENDS geometry_msgs roscpp rospy
 )
 
 
