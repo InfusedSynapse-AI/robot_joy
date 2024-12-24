@@ -1,52 +1,54 @@
 /*
  * @Author: Zhaoq 1327153842@qq.com
  * @Date: 2022-08-02 13:29:22
- * @LastEditors: Zhaoq 1327153842@qq.com
- * @LastEditTime: 2023-02-02 14:20:44
- * @Gitee: https://gitee.com/REINOVO
+ * @LastEditors: Msnakes 1327153842@qq.com
  * @Description: 手柄速度控制节点
  */
 #include<robot_joy/robot_joy.h>
 
 using namespace std;
 
+TeleopJoy::TeleopJoy()
+    : n("~"), joy_wakeup _flag_(false), joy_zero_flag_(false) {
 
+  n.param<int>("axis_linear_x", i_velLinear_x,
+               1); // x方向控制键（前进后退）axis
+  n.param<int>("axis_linear_y", i_velLinear_y,
+               0); // y方向控制键（左移右移）axis
+  n.param<int>("axis_angular", i_velAngular, 3); // yaw角控制键（左转右转）axis
 
-TeleopJoy::TeleopJoy():n("~"),joy_wakeup_flag_(false), joy_zero_flag_(false)
-{
+  n.param<int>("axis_accelerator", i_accelerator, 5);   //加速键 axis
+  n.param<int>("axis_deceleration", i_deceleration, 2); //减速键 axis
 
-    n.param<int>("axis_linear_x",i_velLinear_x,1);//x方向控制键（前进后退）axis
-    n.param<int>("axis_linear_y",i_velLinear_y,0);//y方向控制键（左移右移）axis
-    n.param<int>("axis_angular",i_velAngular,3);//yaw角控制键（左转右转）axis
+  n.param<int>("button_max_linear_increase", i_maxLinearVelIncrease,
+               0); //改变最大线速度
+  n.param<int>("button_max_angular_increase", i_maxAngularVelIncrease,
+               2); //增加最大角速度
+  n.param<int>("button_max_linear_reduce", i_maxLinearVelReduce,
+               1); //减少最大线速度
+  n.param<int>("button_max_angular_reduce", i_maxAngularVelReduce,
+               3); //减少最小角速度
 
-    n.param<int>("axis_accelerator",i_accelerator,5);//加速键 axis
-    n.param<int>("axis_deceleration",i_deceleration,2);//减速键 axis
-
-    n.param<int>("button_max_linear_increase",i_maxLinearVelIncrease,0);//改变最大线速度
-    n.param<int>("button_max_angular_increase",i_maxAngularVelIncrease,2);//增加最大角速度
-    n.param<int>("button_max_linear_reduce",i_maxLinearVelReduce,1);//减少最大线速度
-    n.param<int>("button_max_angular_reduce",i_maxAngularVelReduce,3);//减少最小角速度
-
-    
-
-    n.param<double>("linear_vel_max", f_velLinearMax, 0.8);//最大线速度可增加到的最大值（无论如何加速也会限制在该速度下）
-    n.param<double>("angular_vel_max", f_velAngularMax, 3);//最大角速度可增加到的最大值（无论如何加速也会限制在该速度下）
-    n.param<double>("linear_vel", f_velLinear, 0.3);//初始最大线速度
-    n.param<double>("angular_vel", f_velAngular, 0.6);//初始最大角速度
-    ros::SubscriberStatusCallback pub_marker_cb = std::bind( [&]{
-        if (pub.getNumSubscribers()>0)
-        {
-            flag_publish_maker_ = true;
-            ROS_INFO_STREAM("Starting publish vel.");
-        }
-        else 
-        {
-            flag_publish_maker_ = false;
-            ROS_INFO_STREAM("Stopping publish vel.");
-        }
-    });
-    pub = nh.advertise<geometry_msgs::Twist>("cmd_vel",1, pub_marker_cb, pub_marker_cb);
-    sub = nh.subscribe<sensor_msgs::Joy>("joy", 1, &TeleopJoy::callBack, this);
+  n.param<double>(
+      "linear_vel_max", f_velLinearMax,
+      0.8); //最大线速度可增加到的最大值（无论如何加速也会限制在该速度下）
+  n.param<double>(
+      "angular_vel_max", f_velAngularMax,
+      3); //最大角速度可增加到的最大值（无论如何加速也会限制在该速度下）
+  n.param<double>("linear_vel", f_velLinear, 0.3);   //初始最大线速度
+  n.param<double>("angular_vel", f_velAngular, 0.6); //初始最大角速度
+  ros::SubscriberStatusCallback pub_marker_cb = std::bind([&] {
+    if (pub.getNumSubscribers() > 0) {
+      flag_publish_maker_ = true;
+      ROS_INFO_STREAM("Starting publish vel.");
+    } else {
+      flag_publish_maker_ = false;
+      ROS_INFO_STREAM("Stopping publish vel.");
+    }
+  });
+  pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1, pub_marker_cb,
+                                           pub_marker_cb);
+  sub = nh.subscribe<sensor_msgs::Joy>("joy", 1, &TeleopJoy::callBack, this);
 }
 
 void TeleopJoy::callBack(const sensor_msgs::Joy::ConstPtr& joy)
