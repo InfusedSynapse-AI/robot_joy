@@ -1,125 +1,148 @@
-/*
- * @Author: Zhaoq 1327153842@qq.com
- * @Date: 2022-08-02 13:29:22
- * @LastEditors: Msnakes 1327153842@qq.com
- * @Description: 手柄速度控制节点
- */
-#include<robot_joy/robot_joy.h>
+#include <robot_joy/robot_joy.h>
 
 using namespace std;
 
 TeleopJoy::TeleopJoy()
-    : n("~"), joy_wakeup _flag_(false), joy_zero_flag_(false) {
-
-  n.param<int>("axis_linear_x", i_velLinear_x,
+    : n("~"), joy_wakeup_flag_(false), joy_zero_flag_(false),
+      control_type_(base_vel), last_button_(0), last_axis_(0), ctrl_joint_(1),
+      arm_stop_flag_(false) {
+  n.param<int>("axis_linear_x", i_velLinear_x_,
                1); // x方向控制键（前进后退）axis
-  n.param<int>("axis_linear_y", i_velLinear_y,
+  n.param<int>("axis_linear_y", i_velLinear_y_,
                0); // y方向控制键（左移右移）axis
-  n.param<int>("axis_angular", i_velAngular, 3); // yaw角控制键（左转右转）axis
+  n.param<int>("axis_angular", i_velAngular_, 3); // yaw角控制键（左转右转）axis
 
-  n.param<int>("axis_accelerator", i_accelerator, 5);   //加速键 axis
-  n.param<int>("axis_deceleration", i_deceleration, 2); //减速键 axis
+  n.param<int>("axis_accelerator", i_accelerator_, 5);   // 加速键 axis
+  n.param<int>("axis_deceleration", i_deceleration_, 2); // 减速键 axis
 
-  n.param<int>("button_max_linear_increase", i_maxLinearVelIncrease,
-               0); //改变最大线速度
-  n.param<int>("button_max_angular_increase", i_maxAngularVelIncrease,
-               2); //增加最大角速度
-  n.param<int>("button_max_linear_reduce", i_maxLinearVelReduce,
-               1); //减少最大线速度
-  n.param<int>("button_max_angular_reduce", i_maxAngularVelReduce,
-               3); //减少最小角速度
+  n.param<double>("linear_vel", f_velLinear_, 0.3);    // 初始最大线速度
+  n.param<double>("angular_vel", f_velAngular_, 0.6); // 初始最大角速度
 
-  n.param<double>(
-      "linear_vel_max", f_velLinearMax,
-      0.8); //最大线速度可增加到的最大值（无论如何加速也会限制在该速度下）
-  n.param<double>(
-      "angular_vel_max", f_velAngularMax,
-      3); //最大角速度可增加到的最大值（无论如何加速也会限制在该速度下）
-  n.param<double>("linear_vel", f_velLinear, 0.3);   //初始最大线速度
-  n.param<double>("angular_vel", f_velAngular, 0.6); //初始最大角速度
-  ros::SubscriberStatusCallback pub_marker_cb = std::bind([&] {
-    if (pub.getNumSubscribers() > 0) {
-      flag_publish_maker_ = true;
-      ROS_INFO_STREAM("Starting publish vel.");
-    } else {
-      flag_publish_maker_ = false;
-      ROS_INFO_STREAM("Stopping publish vel.");
-    }
-  });
-  pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1, pub_marker_cb,
-                                           pub_marker_cb);
+  vel_pub_ = nh.advertise<geometry_msgs::Twist>("joy_vel", 1);
+  r_arm_pos_teach_pub_ = nh.advertise<dual_arm_msgs::Pos_Teach>(
+      "/r_arm/rm_driver/Arm_PosTeach", 1);
+  r_arm_rot_teach_pub_ = nh.advertise<dual_arm_msgs::Ort_Teach>(
+      "/r_arm/rm_driver/Arm_OrtTeach", 1);
+  r_arm_joint_teach_pub_ = nh.advertise<dual_arm_msgs::Joint_Teach>(
+      "/r_arm/rm_driver/Arm_JointTeach", 1);
+  r_arm_stop_teach_pub_ = nh.advertise<dual_arm_msgs::Stop_Teach>(
+      "/r_arm/rm_driver/Arm_StopTeach", 1);
+  l_arm_pos_teach_pub_ = nh.advertise<dual_arm_msgs::Pos_Teach>(
+      "/l_arm/rm_driver/Arm_PosTeach", 1);
+  l_arm_rot_teach_pub_ = nh.advertise<dual_arm_msgs::Ort_Teach>(
+      "/l_arm/rm_driver/Arm_OrtTeach", 1);
+  l_arm_joint_teach_pub_ = nh.advertise<dual_arm_msgs::Joint_Teach>(
+      "/l_arm/rm_driver/Arm_JointTeach", 1);
+  l_arm_stop_teach_pub_ = nh.advertise<dual_arm_msgs::Stop_Teach>(
+      "/l_arm/rm_driver/Arm_StopTeach", 1);
   sub = nh.subscribe<sensor_msgs::Joy>("joy", 1, &TeleopJoy::callBack, this);
+  arm_joint_tech_msg_.v = 0.1;
+  arm_pos_tech_msg_.v = 0.1;
+  arm_ort_tech_msg_.v = 0.1;
 }
 
-void TeleopJoy::callBack(const sensor_msgs::Joy::ConstPtr& joy)
-{
-    last_time_ = ros::Time::now();
+void TeleopJoy::callBack(const sensor_msgs::Joy::ConstPtr &joy) {
+  last_time_ = ros::Time::now();
+  joy_vel_ = geometry_msgs::Twist();
+  if (joy->axes[6] == -1) {
+    control_type_++;
+    if (control_type_ >= ControlType::num_end)
+      control_type_ = ControlType::base_vel;
+    return;
+  } else if (joy->axes[6] == 1) {
+    control_type_--;
+    if (control_type_ < ControlType::base_vel)
+      control_type_ = ControlType::num_end - 1;
+    return;
+  }
+  std::vector<float> cmd(7, 0.0);
+  switch (control_type_) {
+  case ControlType::r_Joint:
+    cmd[0] = joy->axes[0];
+    cmd[1] = joy->axes[1];
+    cmd[2] = joy->axes[3];
+    cmd[3] = joy->axes[4];
+
+    if (joy->axes[2] == -1)
+      cmd[4] = 1.0;
+    else if (joy->axes[5] == -1)
+      cmd[4] = -1.0;
+    if (joy->buttons[4] == 1)
+      cmd[5] = 1.0;
+    else if (joy->buttons[5] == 1)
+      cmd[5] = -1.0;
+    if (joy->buttons[2] == 1)
+      cmd[6] = 1.0;
+    else if (joy->buttons[1] == 1)
+      cmd[6] = -1.0;
+    JointTeach(r_arm_joint_teach_pub_, cmd);
+    break;
+  case ControlType::l_Joint:
+    cmd[0] = joy->axes[0];
+    cmd[1] = joy->axes[1];
+    cmd[2] = joy->axes[3];
+    cmd[3] = joy->axes[4];
+    if (joy->axes[2] == -1)
+      cmd[4] = 1.0;
+    else if (joy->axes[5] == -1)
+      cmd[4] = -1.0;
+    if (joy->buttons[4] == 1)
+      cmd[5] = 1.0;
+    else if (joy->buttons[5] == 1)
+      cmd[5] = -1.0;
+    if (joy->buttons[2] == 1)
+      cmd[6] = 1.0;
+    else if (joy->buttons[1] == 1)
+      cmd[6] = -1.0;
+    JointTeach(l_arm_joint_teach_pub_, cmd);
+    break;
+  case ControlType::r_Pos:
+    cmd[0] = joy->axes[0];
+    cmd[1] = joy->axes[1];
+    cmd[2] = joy->axes[3];
+    PoseTeach(r_arm_pos_teach_pub_, cmd);
+    break;
+  case ControlType::l_Pos:
+    cmd[0] = joy->axes[0];
+    cmd[1] = joy->axes[1];
+    cmd[2] = joy->axes[3];
+    PoseTeach(l_arm_pos_teach_pub_, cmd);
+    break;
+  case ControlType::r_Ort:
+    cmd[0] = joy->axes[0];
+    cmd[1] = joy->axes[1];
+    cmd[2] = joy->axes[3];
+    OriTeach(r_arm_rot_teach_pub_, cmd);
+    break;
+  case ControlType::l_Ort:
+    cmd[0] = joy->axes[0];
+    cmd[1] = joy->axes[1];
+    cmd[2] = joy->axes[3];
+    OriTeach(l_arm_rot_teach_pub_, cmd);
+    break;
+  case ControlType::base_vel:
     joy_zero_flag_ = false;
-    if(joy_wakeup_flag_){
-        if(!(joy->axes[0]||joy->axes[1]||joy->axes[3])){
-            joy_zero_flag_ = true;
-        }
-        if(flag_publish_maker_){
-            //slow RT:axis[5]; faster LT axis[2]
-            //add linear B; add angular Y
-            //reduce  linear A; add angular X
-            float gain=1.0;
-            if(joy->axes[5] == -1){//RT加速
-                gain = 1.5;
-                ROS_INFO("accelerate....");
-            }else if(joy->axes[2] == -1){//LT减速
-                gain = 0.6;
-                ROS_INFO("slow dwon....");
-            }
-            if(joy->buttons[0] == 1){//A减小最大线速度
-                f_velLinear -= 0.15;
-                if(f_velLinear > 0)
-                    ROS_INFO("linear velocity reduce to %lf", f_velLinear);
-                else{
-                    f_velLinear = 0.1;
-                    ROS_INFO("The minimum linear speed limit has been reached");
-                }
-            }
-            if(joy->buttons[1] == 1){//B增大最大线速度
-                f_velLinear += 0.15;
-                if(f_velLinear<=f_velLinearMax)
-                    ROS_INFO("linear velocity add to %lf", f_velLinear);
-                else{
-                    f_velLinear = f_velLinearMax;
-                    ROS_INFO("The maximum linear speed limit has been reached");
-                }
-            }
-            if(joy->buttons[2] == 1){//X减小最大角速度
-                f_velAngular -=0.3;
-                if(f_velAngular > 0)
-                    ROS_INFO("angluar velocity reduce to %lf", f_velAngular);
-                else{
-                    f_velAngular = 0.3;
-                    ROS_INFO("The minimum angular speed limit has been reached");
-                }
-                
-            }else if(joy->buttons[3] == 1){//Y增加最大角速度
-                f_velAngular +=0.3;
-                if(f_velAngular<=f_velAngularMax)
-                    ROS_INFO("angluar velocity add to %lf", f_velAngular);
-                else{
-                    f_velAngular = f_velAngularMax;
-                    ROS_INFO("The maximum angular speed limit has been reached");
-                }
-            }
-            vel.angular.z = joy->axes[i_velAngular]*f_velAngular*gain;
-            vel.linear.x = joy->axes[i_velLinear_x]*f_velLinear*gain;
-            vel.linear.y = joy->axes[i_velLinear_y]*f_velLinear*gain;
-            if(vel.linear.x>(f_velLinearMax*gain)) vel.linear.x = f_velLinearMax*gain;
-            if(vel.linear.y>(f_velLinearMax*gain)) vel.linear.y = f_velLinearMax*gain;
-            if(vel.angular.z>(f_velAngularMax*gain)) vel.angular.z = f_velAngularMax*gain;
-        }
-        
+    if (!(joy->axes[0] || joy->axes[1] || joy->axes[3] || joy->axes[4])) {
+      joy_zero_flag_ = true;
     }
-    if(joy->buttons[9]&&joy->buttons[10]){
-        joy_wakeup_flag_ = !joy_wakeup_flag_;
-        if(joy_wakeup_flag_) ROS_WARN("joy vel controller wakeup");
-        else ROS_WARN("joy vel controller sleep");
+    float gain = 1.0;
+    if (joy->axes[5] == -1) { // RT加速
+      gain = 1.5;
+      ROS_INFO("accelerate....");
+    } else if (joy->axes[2] == -1) { // LT减速
+      gain = 0.6;
+      ROS_INFO("slow dwon....");
     }
+    joy_vel_.angular.z = joy->axes[i_velAngular_] * f_velAngular_ * gain;
+    joy_vel_.linear.x = joy->axes[i_velLinear_x_] * f_velLinear_ * gain;
+    joy_vel_.linear.y = joy->axes[i_velLinear_y_] * f_velLinear_ * gain;
+    break;
+  }
+  if (joy->buttons[9]) {
+    joy_wakeup_flag_ = !joy_wakeup_flag_;
+    if (joy_wakeup_flag_)
+      ROS_WARN("joy vel controller wakeup");
+    else
+      ROS_WARN("joy vel controller sleep");
+  }
 }
-
