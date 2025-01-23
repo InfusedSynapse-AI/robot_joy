@@ -47,23 +47,24 @@ void CmdSenderMobile::DynamicCallback(robot_joy::VelConfig &config,
       config.max_vel_trans, config.max_vel_th, config.acc_lim_trans,
       config.acc_lim_th, config.dec_lim_trans, config.dec_lim_th);
 }
-double CmdSenderMobile::SmoothControlWithSCurve(double current, double target,
-                                                double dt) {
-  if (dt >= smooth_transition_time_) {
-    return current;
-  }
-  double t = dt / smooth_transition_time_;
-  double s = 3 * t * t - 2 * t * t * t;
-  return current + s * (target - current);
-}
+// double CmdSenderMobile::SmoothControlWithSCurve(double current, double target,
+//                                                 double dt) {
+//   if (dt >= smooth_transition_time_) {
+//     return current;
+//   }
+//   double t = dt / smooth_transition_time_;
+//   double s = 3 * t * t - 2 * t * t * t;
+//   return current + s * (target - current);
+// }
 void CmdSenderMobile::ApplyLimit(geometry_msgs::Twist &target_vel, double gain=1.0) {
-  if (smooth_control_) {
-    target_vel.linear.x =
-        SmoothControlWithSCurve(current_vel_.linear.x, target_vel.linear.x,
-                                (ros::Time::now() - last_time_).toSec());
-    target_vel.angular.z =
-        SmoothControlWithSCurve(current_vel_.angular.z, target_vel.angular.z,
-                                (ros::Time::now() - last_time_).toSec());
+  if (smooth_control_&&odom_received_) {
+    
+    // target_vel.linear.x =
+    //     SmoothControlWithSCurve(current_vel_.linear.x, target_vel.linear.x,
+    //                             (ros::Time::now() - last_time_).toSec());
+    // target_vel.angular.z =
+    //     SmoothControlWithSCurve(current_vel_.angular.z, target_vel.angular.z,
+    //                             (ros::Time::now() - last_time_).toSec());
 
     double delta_x = target_vel.linear.x - current_vel_.linear.x;
     double delta_th = target_vel.angular.z - current_vel_.angular.z;
@@ -84,21 +85,20 @@ void CmdSenderMobile::ApplyLimit(geometry_msgs::Twist &target_vel, double gain=1
     }
   }
   if (target_vel.linear.x < 0)
-    target_vel.linear.x = std::min(target_vel.linear.x, -max_vel_trans_*gain);
+    target_vel.linear.x = std::max(target_vel.linear.x, -max_vel_trans_*gain);
   else
-    target_vel.linear.x = std::max(target_vel.linear.x, max_vel_trans_*gain);
+    target_vel.linear.x = std::min(target_vel.linear.x, max_vel_trans_*gain);
   if (target_vel.linear.y < 0)
-    target_vel.linear.y = std::min(target_vel.linear.y, -max_vel_trans_*gain);
+    target_vel.linear.y = std::max(target_vel.linear.y, -max_vel_trans_*gain);
   else
-    target_vel.linear.y = std::max(target_vel.linear.y, max_vel_trans_*gain);
+    target_vel.linear.y = std::min(target_vel.linear.y, max_vel_trans_*gain);
   if (target_vel.angular.z < 0)
-    target_vel.angular.z = std::min(target_vel.angular.z, -max_vel_th_*gain);
+    target_vel.angular.z = std::max(target_vel.angular.z, -max_vel_th_*gain);
   else
-    target_vel.angular.z = std::max(target_vel.angular.z, max_vel_th_*gain);
+    target_vel.angular.z = std::min(target_vel.angular.z, max_vel_th_*gain);
 }
 void CmdSenderMobile::SendCmd(std::vector<double> cmd) {
-  if(!odom_received_)
-    return;
+  
   geometry_msgs::Twist target_vel;
   double gain = 1.0;
   if (cmd[3] == 1) { // RT加速
@@ -106,10 +106,10 @@ void CmdSenderMobile::SendCmd(std::vector<double> cmd) {
   } else if (cmd[3] == -1) { // LT减速
     gain = 0.5;
   }
-  target_vel.linear.x = max_vel_trans_ * cmd[0];
-  target_vel.angular.z = max_vel_th_ * cmd[2];
+  target_vel.linear.x = max_vel_trans_ * cmd[0]* gain;
+  target_vel.angular.z = max_vel_th_ * cmd[2]* gain;
   if(odom_model_type_ == "omni")
-    target_vel.linear.y = max_vel_trans_ * cmd[1];
+    target_vel.linear.y = max_vel_trans_ * cmd[1]* gain;
   ApplyLimit(target_vel, gain);
   vel_pub_.publish(target_vel);
   odom_received_ = false;

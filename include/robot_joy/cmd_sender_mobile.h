@@ -24,8 +24,8 @@ public:
 private:
   void OdomCallback(const nav_msgs::Odometry::ConstPtr &msg);
   void ApplyLimit(geometry_msgs::Twist &target_vel, double gain);
-  double SmoothControlWithSCurve(double current, double target,
-                                         double dt);
+  // double SmoothControlWithSCurve(double current, double target,
+  //                                        double dt);
   void DynamicCallback(robot_joy::VelConfig &config, uint32_t level);
 private:
   bool smooth_control_;
