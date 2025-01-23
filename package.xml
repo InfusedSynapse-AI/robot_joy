@@ -9,12 +9,18 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
   <build_depend>roscpp</build_depend>
+  <build_depend>dynamic_reconfigure</build_depend>
   <build_depend>dual_arm_msgs</build_depend>
   <build_export_depend>geometry_msgs</build_export_depend>
+  <build_export_depend>nav_msgs</build_export_depend>
+  <build_export_depend>dynamic_reconfigure</build_export_depend>
   <build_export_depend>roscpp</build_export_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>dual_arm_msgs</exec_depend>
+  <exec_depend>dynamic_reconfigure</exec_depend>
+  <build_depend>nav_msgs</build_depend>
   <exec_depend>joy</exec_depend>
 </package>

@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(robot_joy)
+if (POLICY CMP0048)
+  cmake_policy(SET CMP0048 NEW)
+endif (POLICY CMP0048)
+project(robot_joy VERSION 2.0.1)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -7,43 +10,39 @@ project(robot_joy)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
+  nav_msgs
   roscpp
-  rospy
+  dynamic_reconfigure
   dual_arm_msgs
 )
-
-catkin_package(
- #INCLUDE_DIRS include
- #LIBRARIES robot_joy
- #CATKIN_DEPENDS geometry_msgs roscpp rospy
+generate_dynamic_reconfigure_options(
+  cfg/Vel.cfg
 )
-
+catkin_package(
+)
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} src/robot_joy.cpp)
-target_link_libraries(${PROJECT_NAME}
-  ${catkin_LIBRARIES}
+add_executable(${PROJECT_NAME}_node node/robot_joy_node.cpp
+  src/robot_joy.cpp
+  src/cmd_sender_rm65b.cpp
+  src/cmd_sender_mobile.cpp
 )
-add_executable(${PROJECT_NAME}_node src/robot_joy_node.cpp)
 
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
-  ${PROJECT_NAME}
 )
 
 install(TARGETS ${PROJECT_NAME}_node
  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
-install(TARGETS ${PROJECT_NAME}
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-)
+
 foreach(dir launch)
   install(DIRECTORY ${dir}/
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/${dir})

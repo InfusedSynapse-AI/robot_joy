@@ -2,7 +2,8 @@
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "robot_joy");
-    TeleopJoy& teleop_rei = TeleopJoy::getInstance();
-    teleop_rei.run();
+    ros::NodeHandle nh;
+    robot_joy::TeleopJoy teleop(nh);
+    teleop.run();
     return 0;
 }
