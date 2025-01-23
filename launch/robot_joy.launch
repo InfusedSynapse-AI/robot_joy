@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <!--joy red mode-->
 <launch>
-  <node  ode pkg="robot_joy" type="robot_joy_node" name="robot_joy" >
+  <node pkg="robot_joy" type="robot_joy_node" name="robot_joy" >
     <param name="smooth_control" value="true" type="bool" />
     <param name="smooth_transition_time" value="1.0" type="double" />
     <param name="max_vel_trans" value="0.8" type="double" />
@@ -10,7 +10,7 @@
     <param name="acc_lim_th" value="0.4" type="double" />
     <param name="dec_lim_trans" value="0.6" type="double" />
     <param name="dec_lim_th" value="0.6" type="double" />
-    <param name="odom_model_type" value="diff" type="double" />
+    <param name="odom_model_type" value="diff" type="string" />
   </node>
   <node respawn="true" pkg="joy" type="joy_node" name="joy_node">
     <param name="deadzone" value="0.12" />
