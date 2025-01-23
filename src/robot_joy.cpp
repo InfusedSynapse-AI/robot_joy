@@ -228,6 +228,7 @@ void TeleopJoy::JoyCallBack(const sensor_msgs::Joy::ConstPtr &joy) {
     cmd_sender_->SendCmd(cmd);
     break;
   case ControlType::base_vel:
+
     cmd.resize(4, 0);
     cmd[0] = joy->axes[1];
     cmd[1] = joy->axes[0];
@@ -247,9 +248,11 @@ void TeleopJoy::run() {
   ros::Rate loop_rate(10);
   while (ros::ok()) {
     ros::spinOnce();
-    if ((ros::Time::now() - last_time_).toSec() > 10.0) {
-      cmd_sender_->StopCmd();
-      joy_wakeup_flag_ = false;
+    if (joy_wakeup_flag_) {
+      if ((ros::Time::now() - last_time_).toSec() > 10.0) {
+        cmd_sender_->StopCmd();
+        joy_wakeup_flag_ = false;
+      }
     }
     loop_rate.sleep();
   }
